@@ -32,6 +32,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [showOpcoes, setShowOpcoes] = useState(false);
   const [novoSalario, setNovoSalario] = useState("");
+  const [alertaCreditoInput, setAlertaCreditoInput] = useState("");
   const [showTransacoes, setShowTransacoes] = useState(false);
   const [transacoes, setTransacoes] = useState<TransacaoRespostaDTO[]>([]);
   const [loadingTransacoes, setLoadingTransacoes] = useState(false);
@@ -47,7 +48,7 @@ export default function DashboardPage() {
     if (!session?.accessToken) return;
     try {
       setLoadingResumo(true);
-      const data = await api.getResumo();
+      const data = await api.obterResumo();
       setResumo(data);
     } catch (err) {
       console.error("Erro ao carregar resumo:", err);
@@ -62,6 +63,15 @@ export default function DashboardPage() {
       carregarResumo();
     }
   }, [status, carregarResumo]);
+
+  useEffect(() => {
+    if (resumo?.alertaCredito !== null && resumo?.alertaCredito !== undefined) {
+      setAlertaCreditoInput(String(resumo.alertaCredito).replaceAll(".", ","));
+      return;
+    }
+
+    setAlertaCreditoInput("");
+  }, [resumo?.alertaCredito]);
 
   const handleConfirmar = async () => {
     if (!valor || !tipo) {
@@ -79,7 +89,7 @@ export default function DashboardPage() {
     setMensagem(null);
 
     try {
-      await api.createTransaction({
+      await api.criarTransacao({
         tipo,
         valor: valorNumerico,
         descricao: descricao || undefined,
@@ -107,7 +117,7 @@ export default function DashboardPage() {
     }
 
     try {
-      await api.updateSalario({ salario: salarioNumerico });
+      await api.atualizarSalario({ salario: salarioNumerico });
       setMensagem({ tipo: "sucesso", texto: "Salário atualizado com sucesso!" });
       setShowOpcoes(false);
       setNovoSalario("");
@@ -128,7 +138,7 @@ export default function DashboardPage() {
     try {
       setLoadingTransacoes(true);
       setShowTransacoes(true);
-      const page = await api.getTransactions({ size: 1000 });
+      const page = await api.listarTransacoes({ size: 1000 });
       setTransacoes(page.content);
     } catch (err) {
       setMensagem({
@@ -138,6 +148,27 @@ export default function DashboardPage() {
     } finally {
       setLoadingTransacoes(false);
     }
+  };
+
+  const handleSalvarAlertaCredito = () => {
+    const alertaNumerico = Number.parseFloat(alertaCreditoInput.replaceAll(",", "."));
+    if (Number.isNaN(alertaNumerico) || alertaNumerico < 0) {
+      setMensagem({ tipo: "erro", texto: "Valor de alerta inválido." });
+      return;
+    }
+
+    api
+      .atualizarAlertaCredito({ alertaCredito: alertaNumerico })
+      .then(async () => {
+        setMensagem({ tipo: "sucesso", texto: "Alerta de cartão de crédito salvo com sucesso!" });
+        await carregarResumo();
+      })
+      .catch((err) => {
+        setMensagem({
+          tipo: "erro",
+          texto: err instanceof Error ? err.message : "Erro ao salvar alerta de crédito.",
+        });
+      });
   };
 
   const handleLogout = () => {
@@ -182,6 +213,8 @@ export default function DashboardPage() {
   const saldoCredito = resumo?.totalGastoCredito ?? 0;
   const saldoDebitoPix = resumo?.totalGastoDebitoPix ?? 0;
   const saldoDisponivel = resumo?.saldoDisponivel ?? 0;
+  const alertaCredito = resumo?.alertaCredito ?? null;
+  const creditoAcimaDoAlerta = alertaCredito !== null && saldoCredito > alertaCredito;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
@@ -244,6 +277,27 @@ export default function DashboardPage() {
 
             <hr className="my-4 border-gray-200" />
 
+            <h2 className="mb-4 text-lg font-semibold text-gray-700">
+              Alerta de Cartão de Crédito
+            </h2>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Valor de alerta"
+                value={alertaCreditoInput}
+                onChange={(e) => setAlertaCreditoInput(parseCurrencyInput(e.target.value))}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-red-600 focus:ring-2 focus:ring-red-200"
+              />
+              <button
+                onClick={handleSalvarAlertaCredito}
+                className="rounded-lg bg-red-700 px-6 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
+              >
+                Salvar
+              </button>
+            </div>
+
+            <hr className="my-4 border-gray-200" />
+
             <button
               onClick={handleGerarListaTransacoes}
               className="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
@@ -270,7 +324,11 @@ export default function DashboardPage() {
             <div className="rounded-xl bg-green-400 px-6 py-4 text-lg font-bold text-black shadow">
               Saldo Salário: {formatCurrency(saldoDisponivel)}
             </div>
-            <div className="rounded-xl bg-green-400 px-6 py-4 text-lg font-bold text-black shadow">
+            <div
+              className={`rounded-xl bg-green-400 px-6 py-4 text-lg font-bold shadow ${
+                creditoAcimaDoAlerta ? "text-red-700" : "text-black"
+              }`}
+            >
               Saldo Crédito: {formatCurrency(saldoCredito)}
             </div>
             <div className="rounded-xl bg-green-400 px-6 py-4 text-lg font-bold text-black shadow">

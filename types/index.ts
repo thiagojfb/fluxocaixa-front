@@ -1,5 +1,6 @@
 export interface ResumoRespostaDTO {
   salario: number;
+  alertaCredito: number | null;
   totalGastoCredito: number;
   totalGastoDebitoPix: number;
   totalGasto: number;
@@ -10,6 +11,7 @@ export interface ResumoRespostaDTO {
 export interface OrcamentoRespostaDTO {
   id: string;
   salario: number;
+  alertaCredito: number | null;
   criadoEm: string;
   atualizadoEm: string;
 }
@@ -41,4 +43,8 @@ export interface Page<T> {
 
 export interface SalarioRequisicaoDTO {
   salario: number;
+}
+
+export interface AlertaCreditoRequisicaoDTO {
+  alertaCredito: number;
 }

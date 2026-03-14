@@ -6,6 +6,7 @@ import type {
   TransacaoRequisicaoDTO,
   TransacaoRespostaDTO,
   SalarioRequisicaoDTO,
+  AlertaCreditoRequisicaoDTO,
   OrcamentoRespostaDTO,
   Page,
 } from "@/types";
@@ -42,24 +43,30 @@ export function useApi() {
   const token = session?.accessToken ?? "";
 
   return {
-    getResumo: () => fetchApiClient<ResumoRespostaDTO>("/api/summary", token),
+    obterResumo: () => fetchApiClient<ResumoRespostaDTO>("/api/resumo", token),
 
-    getBudget: () =>
-      fetchApiClient<OrcamentoRespostaDTO>("/api/budget", token),
+    obterOrcamento: () =>
+      fetchApiClient<OrcamentoRespostaDTO>("/api/orcamento", token),
 
-    updateSalario: (data: SalarioRequisicaoDTO) =>
-      fetchApiClient<OrcamentoRespostaDTO>("/api/budget/salary", token, {
+    atualizarSalario: (data: SalarioRequisicaoDTO) =>
+      fetchApiClient<OrcamentoRespostaDTO>("/api/orcamento/salario", token, {
         method: "PUT",
         body: JSON.stringify(data),
       }),
 
-    createTransaction: (data: TransacaoRequisicaoDTO) =>
-      fetchApiClient<TransacaoRespostaDTO>("/api/transactions", token, {
+    atualizarAlertaCredito: (data: AlertaCreditoRequisicaoDTO) =>
+      fetchApiClient<OrcamentoRespostaDTO>("/api/orcamento/alerta-credito", token, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    criarTransacao: (data: TransacaoRequisicaoDTO) =>
+      fetchApiClient<TransacaoRespostaDTO>("/api/transacoes", token, {
         method: "POST",
         body: JSON.stringify(data),
       }),
 
-    getTransactions: (params?: {
+    listarTransacoes: (params?: {
       tipo?: string;
       dataInicio?: string;
       dataFim?: string;
@@ -77,12 +84,12 @@ export function useApi() {
         searchParams.set("size", params.size.toString());
 
       const query = searchParams.toString();
-      const url = query ? `/api/transactions?${query}` : "/api/transactions";
+      const url = query ? `/api/transacoes?${query}` : "/api/transacoes";
       return fetchApiClient<Page<TransacaoRespostaDTO>>(url, token);
     },
 
-    deleteTransaction: (id: string) =>
-      fetchApiClient<void>(`/api/transactions/${id}`, token, {
+    removerTransacao: (id: string) =>
+      fetchApiClient<void>(`/api/transacoes/${id}`, token, {
         method: "DELETE",
       }),
   };
