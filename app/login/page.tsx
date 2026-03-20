@@ -135,8 +135,8 @@ function LoginForm() {
         <div className="mt-6 rounded-lg bg-gray-50 p-4 text-xs text-gray-500">
           <p className="font-semibold text-gray-600 mb-1">Usuários de teste:</p>
           <p>
-            <span className="font-medium">Usuário:</span> usuario /{" "}
-            <span className="font-medium">Senha:</span> 123456
+            <span className="font-medium">Usuário:</span> thiago /{" "}
+            <span className="font-medium">Senha:</span> 123
           </p>
           <p>
             <span className="font-medium">Admin:</span> admin /{" "}

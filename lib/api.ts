@@ -4,7 +4,10 @@ import type {
   OrcamentoRespostaDTO,
   TransacaoRequisicaoDTO,
   TransacaoRespostaDTO,
+  HistoricoTransacaoRespostaDTO,
+  FechamentoFaturaRespostaDTO,
   SalarioRequisicaoDTO,
+  AlertaCreditoRequisicaoDTO,
   Page,
 } from "@/types";
 
@@ -44,33 +47,52 @@ async function fetchApi<T>(
 
 // ── Orçamento ──
 export async function getResumo(): Promise<ResumoRespostaDTO> {
-  return fetchApi<ResumoRespostaDTO>("/api/summary");
+  return fetchApi<ResumoRespostaDTO>("/api/resumo");
 }
 
-export async function getBudget(): Promise<OrcamentoRespostaDTO> {
-  return fetchApi<OrcamentoRespostaDTO>("/api/budget");
+export async function obterOrcamento(): Promise<OrcamentoRespostaDTO> {
+  return fetchApi<OrcamentoRespostaDTO>("/api/orcamento");
 }
 
-export async function updateSalario(
+export async function atualizarSalario(
   data: SalarioRequisicaoDTO
 ): Promise<OrcamentoRespostaDTO> {
-  return fetchApi<OrcamentoRespostaDTO>("/api/budget/salary", {
+  return fetchApi<OrcamentoRespostaDTO>("/api/orcamento/salario", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function atualizarAlertaCredito(
+  data: AlertaCreditoRequisicaoDTO
+): Promise<OrcamentoRespostaDTO> {
+  return fetchApi<OrcamentoRespostaDTO>("/api/orcamento/alerta-credito", {
     method: "PUT",
     body: JSON.stringify(data),
   });
 }
 
 // ── Transações ──
-export async function createTransaction(
+export async function criarTransacao(
   data: TransacaoRequisicaoDTO
 ): Promise<TransacaoRespostaDTO> {
-  return fetchApi<TransacaoRespostaDTO>("/api/transactions", {
+  return fetchApi<TransacaoRespostaDTO>("/api/transacoes", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function getTransactions(params?: {
+export async function atualizarTransacao(
+  id: string,
+  data: TransacaoRequisicaoDTO
+): Promise<TransacaoRespostaDTO> {
+  return fetchApi<TransacaoRespostaDTO>(`/api/transacoes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listarTransacoes(params?: {
   tipo?: string;
   dataInicio?: string;
   dataFim?: string;
@@ -87,10 +109,45 @@ export async function getTransactions(params?: {
     searchParams.set("size", params.size.toString());
 
   const query = searchParams.toString();
-  const url = query ? `/api/transactions?${query}` : "/api/transactions";
+  const url = query ? `/api/transacoes?${query}` : "/api/transacoes";
   return fetchApi<Page<TransacaoRespostaDTO>>(url);
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
-  return fetchApi<void>(`/api/transactions/${id}`, { method: "DELETE" });
+export async function removerTransacao(id: string): Promise<void> {
+  return fetchApi<void>(`/api/transacoes/${id}`, { method: "DELETE" });
+}
+
+export async function fecharFatura(): Promise<FechamentoFaturaRespostaDTO> {
+  return fetchApi<FechamentoFaturaRespostaDTO>("/api/fatura/fechar", {
+    method: "POST",
+  });
+}
+
+export async function fecharSaldoDebitoPix(): Promise<FechamentoFaturaRespostaDTO> {
+  return fetchApi<FechamentoFaturaRespostaDTO>("/api/fatura/fechar-debito-pix", {
+    method: "POST",
+  });
+}
+
+export async function listarHistoricoTransacoes(params?: {
+  dataInicio?: string;
+  dataFim?: string;
+  page?: number;
+  size?: number;
+}): Promise<Page<HistoricoTransacaoRespostaDTO>> {
+  const searchParams = new URLSearchParams();
+  if (params?.dataInicio)
+    searchParams.set("dataInicio", params.dataInicio);
+  if (params?.dataFim)
+    searchParams.set("dataFim", params.dataFim);
+  if (params?.page !== undefined)
+    searchParams.set("page", params.page.toString());
+  if (params?.size !== undefined)
+    searchParams.set("size", params.size.toString());
+
+  const query = searchParams.toString();
+  const url = query
+    ? `/api/historico-transacoes?${query}`
+    : "/api/historico-transacoes";
+  return fetchApi<Page<HistoricoTransacaoRespostaDTO>>(url);
 }
