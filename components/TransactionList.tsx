@@ -9,6 +9,9 @@ type SortOrder = "asc" | "desc";
 interface TransactionListProps {
   transactions: TransacaoRespostaDTO[];
   loading: boolean;
+  processingId?: string | null;
+  onEdit: (transaction: TransacaoRespostaDTO) => void;
+  onDelete: (transaction: TransacaoRespostaDTO) => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -44,7 +47,13 @@ function SortIcon({ active, order }: Readonly<{ active: boolean; order: SortOrde
   );
 }
 
-export default function TransactionList({ transactions, loading }: Readonly<TransactionListProps>) {
+export default function TransactionList({
+  transactions,
+  loading,
+  processingId = null,
+  onEdit,
+  onDelete,
+}: Readonly<TransactionListProps>) {
   const [sortKey, setSortKey] = useState<SortKey>("dataHora");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
@@ -105,7 +114,7 @@ export default function TransactionList({ transactions, loading }: Readonly<Tran
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full min-w-[500px] table-auto">
+      <table className="w-full min-w-[620px] table-auto">
         <thead className="bg-gray-50">
           <tr>
             <th className={headerClass} onClick={() => handleSort("dataHora")}>
@@ -120,6 +129,7 @@ export default function TransactionList({ transactions, loading }: Readonly<Tran
               Descrição
               <SortIcon active={sortKey === "descricao"} order={sortOrder} />
             </th>
+            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -133,6 +143,34 @@ export default function TransactionList({ transactions, loading }: Readonly<Tran
               </td>
               <td className="px-4 py-3 text-sm text-gray-600">
                 {t.descricao ?? "—"}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-right">
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(t)}
+                    disabled={processingId === t.id}
+                    className="rounded p-1 text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Editar transação"
+                    title="Editar"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path d="M14.69 2.86a2 2 0 112.83 2.83l-9.2 9.2-3.68.85a.75.75 0 01-.9-.9l.85-3.68 9.2-9.2zM13.63 4.98L5.9 12.7l-.45 1.94 1.94-.45 7.73-7.73-1.5-1.49z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(t)}
+                    disabled={processingId === t.id}
+                    className="rounded p-1 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Remover transação"
+                    title="Remover"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M8.5 2.5A1.5 1.5 0 0010 4h0a1.5 1.5 0 001.5-1.5h2.25a.75.75 0 010 1.5h-.43l-.69 11.03A2 2 0 0110.64 17H9.36a2 2 0 01-1.99-1.97L6.68 4H6.25a.75.75 0 010-1.5H8.5zm1.5 3.75a.75.75 0 00-.75.75v6a.75.75 0 001.5 0V7a.75.75 0 00-.75-.75zm-3 0a.75.75 0 00-.75.75v6a.75.75 0 001.5 0V7a.75.75 0 00-.75-.75zm6 0a.75.75 0 00-.75.75v6a.75.75 0 001.5 0V7a.75.75 0 00-.75-.75z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

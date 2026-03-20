@@ -48,3 +48,20 @@ export interface SalarioRequisicaoDTO {
 export interface AlertaCreditoRequisicaoDTO {
   alertaCredito: number;
 }
+
+export interface FechamentoFaturaRespostaDTO {
+  fechadoEm: string;
+  quantidadeTransacoesCreditoTransportadas: number;
+  totalFaturaFechada: number;
+  quantidadeTransacoesRemovidas: number;
+}
+
+export interface HistoricoTransacaoRespostaDTO {
+  id: string;
+  tipo: string;
+  descricao: string | null;
+  valor: number;
+  dataHora: string;
+  criadoEm: string;
+  fechadoEm: string;
+}

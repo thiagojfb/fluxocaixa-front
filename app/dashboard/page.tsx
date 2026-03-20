@@ -1,19 +1,49 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useApi } from "@/lib/api-client";
-import type { ResumoRespostaDTO, TransacaoRespostaDTO } from "@/types";
+import type {
+  HistoricoTransacaoRespostaDTO,
+  ResumoRespostaDTO,
+  TransacaoRequisicaoDTO,
+  TransacaoRespostaDTO,
+} from "@/types";
 import TransactionList from "@/components/TransactionList";
 
 const formatCurrency = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const formatDate = (iso: string) => {
+  const date = new Date(iso);
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 function parseCurrencyInput(value: string): string {
   // Remove tudo que não é número ou vírgula/ponto
   return value.replaceAll(/[^\d,.-]/g, "");
 }
+
+function toIsoInicioDoDiaOrUndefined(value: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(`${value}T00:00:00`);
+  return date.toISOString();
+}
+
+function toIsoFimDoDiaOrUndefined(value: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(`${value}T23:59:59.999`);
+  return date.toISOString();
+}
+
+const TAMANHO_PAGINA_HISTORICO = 10;
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -36,6 +66,21 @@ export default function DashboardPage() {
   const [showTransacoes, setShowTransacoes] = useState(false);
   const [transacoes, setTransacoes] = useState<TransacaoRespostaDTO[]>([]);
   const [loadingTransacoes, setLoadingTransacoes] = useState(false);
+  const [processingTransacaoId, setProcessingTransacaoId] = useState<string | null>(null);
+  const [transacaoEmEdicao, setTransacaoEmEdicao] = useState<TransacaoRespostaDTO | null>(null);
+  const [editarValor, setEditarValor] = useState("");
+  const [editarDescricao, setEditarDescricao] = useState("");
+  const [editarTipo, setEditarTipo] = useState<"CREDIT" | "DEBIT_PIX">("CREDIT");
+  const [showHistorico, setShowHistorico] = useState(false);
+  const [historicoTransacoes, setHistoricoTransacoes] = useState<HistoricoTransacaoRespostaDTO[]>([]);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [paginaHistorico, setPaginaHistorico] = useState(0);
+  const [totalPaginasHistorico, setTotalPaginasHistorico] = useState(0);
+  const [totalElementosHistorico, setTotalElementosHistorico] = useState(0);
+  const [loadingFecharFatura, setLoadingFecharFatura] = useState(false);
+  const [loadingFecharDebitoPix, setLoadingFecharDebitoPix] = useState(false);
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
 
   // Redirect if error in token
   useEffect(() => {
@@ -130,6 +175,15 @@ export default function DashboardPage() {
     }
   };
 
+  const carregarTransacoesFiltradas = useCallback(async () => {
+    const page = await api.listarTransacoes({
+      size: 1000,
+      dataInicio: toIsoInicioDoDiaOrUndefined(filtroDataInicio),
+      dataFim: toIsoFimDoDiaOrUndefined(filtroDataFim),
+    });
+    setTransacoes(page.content);
+  }, [api, filtroDataFim, filtroDataInicio]);
+
   const handleGerarListaTransacoes = async () => {
     if (showTransacoes) {
       setShowTransacoes(false);
@@ -138,8 +192,7 @@ export default function DashboardPage() {
     try {
       setLoadingTransacoes(true);
       setShowTransacoes(true);
-      const page = await api.listarTransacoes({ size: 1000 });
-      setTransacoes(page.content);
+      await carregarTransacoesFiltradas();
     } catch (err) {
       setMensagem({
         tipo: "erro",
@@ -148,6 +201,101 @@ export default function DashboardPage() {
     } finally {
       setLoadingTransacoes(false);
     }
+  };
+
+  const handleEditarTransacao = (transacao: TransacaoRespostaDTO) => {
+    setTransacaoEmEdicao(transacao);
+    setEditarValor(String(transacao.valor).replaceAll(".", ","));
+    setEditarDescricao(transacao.descricao ?? "");
+    setEditarTipo(transacao.tipo === "DEBIT_PIX" ? "DEBIT_PIX" : "CREDIT");
+  };
+
+  const handleConfirmarEdicaoTransacao = async () => {
+    if (!transacaoEmEdicao) return;
+
+    const valorNumerico = Number.parseFloat(editarValor.replaceAll(",", "."));
+    if (Number.isNaN(valorNumerico) || valorNumerico <= 0) {
+      setMensagem({ tipo: "erro", texto: "Valor inválido para editar a transação." });
+      return;
+    }
+
+    if (!globalThis.confirm("Confirma a alteração desta transação?")) {
+      return;
+    }
+
+    const payload: TransacaoRequisicaoDTO = {
+      tipo: editarTipo,
+      valor: valorNumerico,
+      descricao: editarDescricao.trim() ? editarDescricao.trim() : undefined,
+    };
+
+    try {
+      setProcessingTransacaoId(transacaoEmEdicao.id);
+      await api.atualizarTransacao(transacaoEmEdicao.id, payload);
+      setMensagem({ tipo: "sucesso", texto: "Transação atualizada com sucesso!" });
+      setTransacaoEmEdicao(null);
+      await Promise.all([carregarResumo(), carregarTransacoesFiltradas()]);
+    } catch (err) {
+      setMensagem({
+        tipo: "erro",
+        texto: err instanceof Error ? err.message : "Erro ao atualizar transação.",
+      });
+    } finally {
+      setProcessingTransacaoId(null);
+    }
+  };
+
+  const handleRemoverTransacao = async (transacao: TransacaoRespostaDTO) => {
+    if (!globalThis.confirm(`Confirma a remoção da transação "${transacao.descricao ?? "sem descrição"}"?`)) {
+      return;
+    }
+
+    try {
+      setProcessingTransacaoId(transacao.id);
+      await api.removerTransacao(transacao.id);
+      setMensagem({ tipo: "sucesso", texto: "Transação removida com sucesso!" });
+      await Promise.all([carregarResumo(), carregarTransacoesFiltradas()]);
+    } catch (err) {
+      setMensagem({
+        tipo: "erro",
+        texto: err instanceof Error ? err.message : "Erro ao remover transação.",
+      });
+    } finally {
+      setProcessingTransacaoId(null);
+    }
+  };
+
+  const carregarHistoricoPaginado = useCallback(async (pagina: number) => {
+    try {
+      setLoadingHistorico(true);
+      const page = await api.listarHistoricoTransacoes({
+        page: pagina,
+        size: TAMANHO_PAGINA_HISTORICO,
+        dataInicio: toIsoInicioDoDiaOrUndefined(filtroDataInicio),
+        dataFim: toIsoFimDoDiaOrUndefined(filtroDataFim),
+      });
+      setHistoricoTransacoes(page.content);
+      setPaginaHistorico(page.number);
+      setTotalPaginasHistorico(page.totalPages);
+      setTotalElementosHistorico(page.totalElements);
+    } catch (err) {
+      setMensagem({
+        tipo: "erro",
+        texto: err instanceof Error ? err.message : "Erro ao carregar histórico de transações.",
+      });
+    } finally {
+      setLoadingHistorico(false);
+    }
+  }, [api, filtroDataFim, filtroDataInicio]);
+
+  const handleGerarHistorico = async () => {
+    if (showHistorico) {
+      setShowHistorico(false);
+      return;
+    }
+
+    setShowHistorico(true);
+    await carregarHistoricoPaginado(0);
   };
 
   const handleSalvarAlertaCredito = () => {
@@ -169,6 +317,62 @@ export default function DashboardPage() {
           texto: err instanceof Error ? err.message : "Erro ao salvar alerta de crédito.",
         });
       });
+  };
+
+  const handleFecharFatura = async () => {
+    try {
+      setLoadingFecharFatura(true);
+      const resposta = await api.fecharFatura();
+
+      setMensagem({
+        tipo: "sucesso",
+        texto: `Fatura fechada com sucesso! ${resposta.quantidadeTransacoesCreditoTransportadas} transações de crédito transportadas (total ${formatCurrency(resposta.totalFaturaFechada)}).`,
+      });
+
+      setTransacoes([]);
+      setShowTransacoes(false);
+      setHistoricoTransacoes([]);
+      setShowHistorico(false);
+      setPaginaHistorico(0);
+      setTotalPaginasHistorico(0);
+      setTotalElementosHistorico(0);
+      await carregarResumo();
+    } catch (err) {
+      setMensagem({
+        tipo: "erro",
+        texto: err instanceof Error ? err.message : "Erro ao fechar fatura.",
+      });
+    } finally {
+      setLoadingFecharFatura(false);
+    }
+  };
+
+  const handleFecharSaldoDebitoPix = async () => {
+    try {
+      setLoadingFecharDebitoPix(true);
+      const resposta = await api.fecharSaldoDebitoPix();
+
+      setMensagem({
+        tipo: "sucesso",
+        texto: `Saldo débito/PIX fechado com sucesso! ${resposta.quantidadeTransacoesCreditoTransportadas} transações transportadas (total ${formatCurrency(resposta.totalFaturaFechada)}).`,
+      });
+
+      setTransacoes([]);
+      setShowTransacoes(false);
+      setHistoricoTransacoes([]);
+      setShowHistorico(false);
+      setPaginaHistorico(0);
+      setTotalPaginasHistorico(0);
+      setTotalElementosHistorico(0);
+      await carregarResumo();
+    } catch (err) {
+      setMensagem({
+        tipo: "erro",
+        texto: err instanceof Error ? err.message : "Erro ao fechar saldo débito/PIX.",
+      });
+    } finally {
+      setLoadingFecharDebitoPix(false);
+    }
   };
 
   const handleLogout = () => {
@@ -215,6 +419,44 @@ export default function DashboardPage() {
   const saldoDisponivel = resumo?.saldoDisponivel ?? 0;
   const alertaCredito = resumo?.alertaCredito ?? null;
   const creditoAcimaDoAlerta = alertaCredito !== null && saldoCredito > alertaCredito;
+  const podeIrPaginaAnteriorHistorico = paginaHistorico > 0;
+  const podeIrProximaPaginaHistorico = paginaHistorico + 1 < totalPaginasHistorico;
+
+  let conteudoHistorico: ReactNode;
+  if (loadingHistorico) {
+    conteudoHistorico = <p className="py-4 text-sm text-gray-500">Carregando histórico...</p>;
+  } else if (historicoTransacoes.length === 0) {
+    conteudoHistorico = (
+      <p className="py-4 text-sm text-gray-500">Nenhuma transação no histórico para o período informado.</p>
+    );
+  } else {
+    conteudoHistorico = (
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full min-w-[700px] table-auto">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Data da Transação</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Fechada em</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tipo</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Descrição</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {historicoTransacoes.map((t) => (
+              <tr key={t.id} className="transition hover:bg-gray-50">
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(t.dataHora)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(t.fechadoEm)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{t.tipo}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">{formatCurrency(t.valor)}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">{t.descricao ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
@@ -298,11 +540,54 @@ export default function DashboardPage() {
 
             <hr className="my-4 border-gray-200" />
 
+            <h2 className="mb-4 text-lg font-semibold text-gray-700">
+              Filtro por Período
+            </h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                type="date"
+                value={filtroDataInicio}
+                onChange={(e) => setFiltroDataInicio(e.target.value)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
+              />
+              <input
+                type="date"
+                value={filtroDataFim}
+                onChange={(e) => setFiltroDataFim(e.target.value)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+
+            <hr className="my-4 border-gray-200" />
+
             <button
               onClick={handleGerarListaTransacoes}
               className="w-full rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               {showTransacoes ? "Ocultar Lista de Transações" : "Gerar Lista de Transações"}
+            </button>
+
+            <button
+              onClick={handleGerarHistorico}
+              className="mt-3 w-full rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-purple-700"
+            >
+              {showHistorico ? "Ocultar Histórico de Transações" : "Gerar Histórico de Transações"}
+            </button>
+
+            <button
+              onClick={handleFecharFatura}
+              disabled={loadingFecharFatura}
+              className="mt-3 w-full rounded-lg bg-orange-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingFecharFatura ? "Fechando fatura..." : "Fechar Fatura"}
+            </button>
+
+            <button
+              onClick={handleFecharSaldoDebitoPix}
+              disabled={loadingFecharDebitoPix}
+              className="mt-3 w-full rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingFecharDebitoPix ? "Fechando débito/PIX..." : "Fechar Saldo Débito/PIX"}
             </button>
           </div>
         )}
@@ -313,7 +598,116 @@ export default function DashboardPage() {
             <h2 className="mb-4 text-lg font-semibold text-gray-700">
               Lista de Transações
             </h2>
-            <TransactionList transactions={transacoes} loading={loadingTransacoes} />
+            <TransactionList
+              transactions={transacoes}
+              loading={loadingTransacoes}
+              processingId={processingTransacaoId}
+              onEdit={handleEditarTransacao}
+              onDelete={handleRemoverTransacao}
+            />
+          </div>
+        )}
+
+        {transacaoEmEdicao && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+              <h3 className="mb-4 text-lg font-semibold text-gray-800">Editar transação</h3>
+
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Valor"
+                  value={editarValor}
+                  onChange={(e) => setEditarValor(parseCurrencyInput(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
+                />
+
+                <input
+                  type="text"
+                  placeholder="Descrição (opcional)"
+                  value={editarDescricao}
+                  onChange={(e) => setEditarDescricao(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
+                />
+
+                <div className="flex gap-5">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="radio"
+                      name="editarTipo"
+                      value="CREDIT"
+                      checked={editarTipo === "CREDIT"}
+                      onChange={() => setEditarTipo("CREDIT")}
+                      className="h-4 w-4 accent-gray-600"
+                    />
+                    <span>Crédito</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                    <input
+                      type="radio"
+                      name="editarTipo"
+                      value="DEBIT_PIX"
+                      checked={editarTipo === "DEBIT_PIX"}
+                      onChange={() => setEditarTipo("DEBIT_PIX")}
+                      className="h-4 w-4 accent-gray-600"
+                    />
+                    <span>Débito/PIX</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTransacaoEmEdicao(null)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmarEdicaoTransacao}
+                  disabled={processingTransacaoId === transacaoEmEdicao.id}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Salvar alterações
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showHistorico && (
+          <div className="mb-6 rounded-xl bg-white p-6 shadow-md">
+            <h2 className="mb-4 text-lg font-semibold text-gray-700">
+              Histórico de Transações
+            </h2>
+
+            {conteudoHistorico}
+
+            {!loadingHistorico && totalPaginasHistorico > 0 && (
+              <div className="mt-4 flex flex-col items-center justify-between gap-3 text-sm text-gray-600 md:flex-row">
+                <span>
+                  Página {paginaHistorico + 1} de {totalPaginasHistorico} • {totalElementosHistorico} registro(s)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void carregarHistoricoPaginado(paginaHistorico - 1)}
+                    disabled={!podeIrPaginaAnteriorHistorico}
+                    className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => void carregarHistoricoPaginado(paginaHistorico + 1)}
+                    disabled={!podeIrProximaPaginaHistorico}
+                    className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -363,8 +757,8 @@ export default function DashboardPage() {
                   checked={tipo === "CREDIT"}
                   onChange={() => setTipo("CREDIT")}
                   className="h-4 w-4 accent-gray-600"
-                />{" "}
-                Crédito
+                />
+                <span>Crédito</span>
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-base font-medium text-gray-700">
                 <input
@@ -374,8 +768,8 @@ export default function DashboardPage() {
                   checked={tipo === "DEBIT_PIX"}
                   onChange={() => setTipo("DEBIT_PIX")}
                   className="h-4 w-4 accent-gray-600"
-                />{" "}
-                Débito/PIX
+                />
+                <span>Débito/PIX</span>
               </label>
             </div>
 

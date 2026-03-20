@@ -4,6 +4,8 @@ import type {
   OrcamentoRespostaDTO,
   TransacaoRequisicaoDTO,
   TransacaoRespostaDTO,
+  HistoricoTransacaoRespostaDTO,
+  FechamentoFaturaRespostaDTO,
   SalarioRequisicaoDTO,
   AlertaCreditoRequisicaoDTO,
   Page,
@@ -80,6 +82,16 @@ export async function criarTransacao(
   });
 }
 
+export async function atualizarTransacao(
+  id: string,
+  data: TransacaoRequisicaoDTO
+): Promise<TransacaoRespostaDTO> {
+  return fetchApi<TransacaoRespostaDTO>(`/api/transacoes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function listarTransacoes(params?: {
   tipo?: string;
   dataInicio?: string;
@@ -103,4 +115,39 @@ export async function listarTransacoes(params?: {
 
 export async function removerTransacao(id: string): Promise<void> {
   return fetchApi<void>(`/api/transacoes/${id}`, { method: "DELETE" });
+}
+
+export async function fecharFatura(): Promise<FechamentoFaturaRespostaDTO> {
+  return fetchApi<FechamentoFaturaRespostaDTO>("/api/fatura/fechar", {
+    method: "POST",
+  });
+}
+
+export async function fecharSaldoDebitoPix(): Promise<FechamentoFaturaRespostaDTO> {
+  return fetchApi<FechamentoFaturaRespostaDTO>("/api/fatura/fechar-debito-pix", {
+    method: "POST",
+  });
+}
+
+export async function listarHistoricoTransacoes(params?: {
+  dataInicio?: string;
+  dataFim?: string;
+  page?: number;
+  size?: number;
+}): Promise<Page<HistoricoTransacaoRespostaDTO>> {
+  const searchParams = new URLSearchParams();
+  if (params?.dataInicio)
+    searchParams.set("dataInicio", params.dataInicio);
+  if (params?.dataFim)
+    searchParams.set("dataFim", params.dataFim);
+  if (params?.page !== undefined)
+    searchParams.set("page", params.page.toString());
+  if (params?.size !== undefined)
+    searchParams.set("size", params.size.toString());
+
+  const query = searchParams.toString();
+  const url = query
+    ? `/api/historico-transacoes?${query}`
+    : "/api/historico-transacoes";
+  return fetchApi<Page<HistoricoTransacaoRespostaDTO>>(url);
 }
