@@ -26,6 +26,12 @@ const formatDate = (iso: string) => {
   });
 };
 
+function formatTipo(tipo: string): string {
+  if (tipo === "CREDIT") return "Crédito";
+  if (tipo === "DEBIT_PIX") return "Débito/PIX";
+  return tipo;
+}
+
 function parseCurrencyInput(value: string): string {
   // Remove tudo que não é número ou vírgula/ponto
   return value.replaceAll(/[^\d,.-]/g, "");
@@ -447,7 +453,7 @@ export default function DashboardPage() {
               <tr key={t.id} className="transition hover:bg-gray-50">
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(t.dataHora)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(t.fechadoEm)}</td>
-                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{t.tipo}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatTipo(t.tipo)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">{formatCurrency(t.valor)}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{t.descricao ?? "—"}</td>
               </tr>

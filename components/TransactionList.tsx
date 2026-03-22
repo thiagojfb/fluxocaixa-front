@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { TransacaoRespostaDTO } from "@/types";
 
-type SortKey = "dataHora" | "valor" | "descricao";
+type SortKey = "dataHora" | "tipo" | "valor" | "descricao";
 type SortOrder = "asc" | "desc";
 
 interface TransactionListProps {
@@ -26,6 +26,12 @@ const formatDate = (iso: string) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const formatTipo = (tipo: string) => {
+  if (tipo === "CREDIT") return "Crédito";
+  if (tipo === "DEBIT_PIX") return "Débito/PIX";
+  return tipo;
 };
 
 function SortIcon({ active, order }: Readonly<{ active: boolean; order: SortOrder }>) {
@@ -75,6 +81,10 @@ export default function TransactionList({
           cmp = new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime();
           break;
         }
+        case "tipo": {
+          cmp = formatTipo(a.tipo).localeCompare(formatTipo(b.tipo), "pt-BR");
+          break;
+        }
         case "valor": {
           cmp = a.valor - b.valor;
           break;
@@ -114,12 +124,16 @@ export default function TransactionList({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full min-w-[620px] table-auto">
+      <table className="w-full min-w-[760px] table-auto">
         <thead className="bg-gray-50">
           <tr>
             <th className={headerClass} onClick={() => handleSort("dataHora")}>
               Data
               <SortIcon active={sortKey === "dataHora"} order={sortOrder} />
+            </th>
+            <th className={headerClass} onClick={() => handleSort("tipo")}>
+              Tipo
+              <SortIcon active={sortKey === "tipo"} order={sortOrder} />
             </th>
             <th className={headerClass} onClick={() => handleSort("valor")}>
               Valor
@@ -137,6 +151,9 @@ export default function TransactionList({
             <tr key={t.id} className="transition hover:bg-gray-50">
               <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                 {formatDate(t.dataHora)}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                {formatTipo(t.tipo)}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">
                 {formatCurrency(t.valor)}
