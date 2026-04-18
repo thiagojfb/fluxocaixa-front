@@ -13,7 +13,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Variáveis de build (necessárias em build time para NEXT_PUBLIC_*)
-ARG NEXT_PUBLIC_API_URL=http://localhost:30080
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build

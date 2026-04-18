@@ -20,6 +20,7 @@ export interface TransacaoRequisicaoDTO {
   tipo: "CREDIT" | "DEBIT_PIX";
   valor: number;
   descricao?: string;
+  quantidadeVezes?: number;
 }
 
 export interface TransacaoRespostaDTO {
@@ -27,6 +28,7 @@ export interface TransacaoRespostaDTO {
   tipo: string;
   descricao: string | null;
   valor: number;
+  quantidadeVezes: number;
   dataHora: string;
   criadoEm: string;
 }
@@ -61,6 +63,7 @@ export interface HistoricoTransacaoRespostaDTO {
   tipo: string;
   descricao: string | null;
   valor: number;
+  quantidadeVezes: number;
   dataHora: string;
   criadoEm: string;
   fechadoEm: string;

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { TransacaoRespostaDTO } from "@/types";
 
-type SortKey = "dataHora" | "tipo" | "valor" | "descricao";
+type SortKey = "dataHora" | "tipo" | "valor" | "quantidadeVezes" | "descricao";
 type SortOrder = "asc" | "desc";
 
 interface TransactionListProps {
@@ -89,6 +89,10 @@ export default function TransactionList({
           cmp = a.valor - b.valor;
           break;
         }
+        case "quantidadeVezes": {
+          cmp = a.quantidadeVezes - b.quantidadeVezes;
+          break;
+        }
         case "descricao": {
           const da = (a.descricao ?? "").toLowerCase();
           const db = (b.descricao ?? "").toLowerCase();
@@ -124,7 +128,7 @@ export default function TransactionList({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="w-full min-w-[760px] table-auto">
+      <table className="w-full min-w-[860px] table-auto">
         <thead className="bg-gray-50">
           <tr>
             <th className={headerClass} onClick={() => handleSort("dataHora")}>
@@ -138,6 +142,10 @@ export default function TransactionList({
             <th className={headerClass} onClick={() => handleSort("valor")}>
               Valor
               <SortIcon active={sortKey === "valor"} order={sortOrder} />
+            </th>
+            <th className={headerClass} onClick={() => handleSort("quantidadeVezes")}>
+              Vezes
+              <SortIcon active={sortKey === "quantidadeVezes"} order={sortOrder} />
             </th>
             <th className={headerClass} onClick={() => handleSort("descricao")}>
               Descrição
@@ -157,6 +165,9 @@ export default function TransactionList({
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">
                 {formatCurrency(t.valor)}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">
+                {t.quantidadeVezes}
               </td>
               <td className="px-4 py-3 text-sm text-gray-600">
                 {t.descricao ?? "—"}

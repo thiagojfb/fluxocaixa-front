@@ -37,6 +37,10 @@ function parseCurrencyInput(value: string): string {
   return value.replaceAll(/[^\d,.-]/g, "");
 }
 
+function parseIntegerInput(value: string): string {
+  return value.replaceAll(/[^\d]/g, "");
+}
+
 function toIsoInicioDoDiaOrUndefined(value: string): string | undefined {
   if (!value) return undefined;
   const date = new Date(`${value}T00:00:00`);
@@ -87,6 +91,8 @@ export default function DashboardPage() {
   const [loadingFecharDebitoPix, setLoadingFecharDebitoPix] = useState(false);
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
+  const [usarLancamentoParcelado, setUsarLancamentoParcelado] = useState(false);
+  const [quantidadeVezesLancamento, setQuantidadeVezesLancamento] = useState("2");
 
   // Redirect if error in token
   useEffect(() => {
@@ -136,6 +142,16 @@ export default function DashboardPage() {
       return;
     }
 
+    let quantidadeVezes: number | undefined;
+    if (usarLancamentoParcelado) {
+      const quantidade = Number.parseInt(quantidadeVezesLancamento, 10);
+      if (Number.isNaN(quantidade) || quantidade < 1) {
+        setMensagem({ tipo: "erro", texto: "Quantidade de vezes inválida." });
+        return;
+      }
+      quantidadeVezes = quantidade;
+    }
+
     setLoading(true);
     setMensagem(null);
 
@@ -144,6 +160,7 @@ export default function DashboardPage() {
         tipo,
         valor: valorNumerico,
         descricao: descricao || undefined,
+        quantidadeVezes,
       });
       setMensagem({ tipo: "sucesso", texto: "Transação registrada com sucesso!" });
       setValor("");
@@ -445,6 +462,7 @@ export default function DashboardPage() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Fechada em</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tipo</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Vezes</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Descrição</th>
             </tr>
           </thead>
@@ -455,6 +473,7 @@ export default function DashboardPage() {
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(t.fechadoEm)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatTipo(t.tipo)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">{formatCurrency(t.valor)}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-600">{t.quantidadeVezes}</td>
                 <td className="px-4 py-3 text-sm text-gray-600">{t.descricao ?? "—"}</td>
               </tr>
             ))}
@@ -542,6 +561,32 @@ export default function DashboardPage() {
               >
                 Salvar
               </button>
+            </div>
+
+            <hr className="my-4 border-gray-200" />
+
+            <h2 className="mb-4 text-lg font-semibold text-gray-700">
+              Lançamento Parcelado
+            </h2>
+            <div className="space-y-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={usarLancamentoParcelado}
+                  onChange={(e) => setUsarLancamentoParcelado(e.target.checked)}
+                  className="h-4 w-4 accent-green-700"
+                />
+                <span>Usar quantidade de vezes no próximo lançamento</span>
+              </label>
+
+              <input
+                type="text"
+                placeholder="Quantidade de vezes"
+                value={quantidadeVezesLancamento}
+                onChange={(e) => setQuantidadeVezesLancamento(parseIntegerInput(e.target.value))}
+                disabled={!usarLancamentoParcelado}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-800 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200 disabled:cursor-not-allowed disabled:bg-gray-100"
+              />
             </div>
 
             <hr className="my-4 border-gray-200" />
